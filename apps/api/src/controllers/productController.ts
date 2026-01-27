@@ -4,8 +4,31 @@
  */
 
 import { Request, Response } from 'express';
-import { mockProducts } from '../utils/mockData';
-import { Product, CompareRequest, CompareResponse } from '../types';
+import prisma from '../services/database.service';
+import { Product, CompareRequest, CompareResponse, Price } from '../types';
+
+/**
+ * Helper function to convert Prisma product to API format
+ */
+const formatProduct = (prismaProduct: any): Product => {
+  return {
+    id: prismaProduct.id,
+    name: prismaProduct.name,
+    description: prismaProduct.description,
+    category: prismaProduct.category,
+    brand: prismaProduct.brand,
+    imageUrl: prismaProduct.imageUrl || undefined,
+    specifications: prismaProduct.specifications as Record<string, string> | undefined,
+    prices: prismaProduct.prices.map((p: any): Price => ({
+      store: p.store,
+      price: Number(p.price),
+      currency: p.currency,
+      url: p.storeUrl,
+      inStock: p.inStock,
+      lastUpdated: p.timestamp.toISOString()
+    }))
+  };
+};
 
 /**
  * @swagger
@@ -28,14 +51,30 @@ import { Product, CompareRequest, CompareResponse } from '../types';
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-export const getAllProducts = (req: Request, res: Response): void => {
+export const getAllProducts = async (req: Request, res: Response): Promise<void> => {
   try {
+    const products = await prisma.product.findMany({
+      include: {
+        prices: {
+          orderBy: {
+            timestamp: 'desc'
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    const formattedProducts = products.map(formatProduct);
+
     res.json({
       success: true,
-      count: mockProducts.length,
-      data: mockProducts
+      count: formattedProducts.length,
+      data: formattedProducts
     });
   } catch (error) {
+    console.error('Error fetching products:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching products',
@@ -82,10 +121,20 @@ export const getAllProducts = (req: Request, res: Response): void => {
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-export const getProductById = (req: Request, res: Response): void => {
+export const getProductById = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const product = mockProducts.find(p => p.id === id);
+
+    const product = await prisma.product.findUnique({
+      where: { id },
+      include: {
+        prices: {
+          orderBy: {
+            timestamp: 'desc'
+          }
+        }
+      }
+    });
 
     if (!product) {
       res.status(404).json({
@@ -97,9 +146,10 @@ export const getProductById = (req: Request, res: Response): void => {
 
     res.json({
       success: true,
-      data: product
+      data: formatProduct(product)
     });
   } catch (error) {
+    console.error('Error fetching product:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching product',
@@ -169,7 +219,7 @@ export const getProductById = (req: Request, res: Response): void => {
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-export const searchProducts = (req: Request, res: Response): void => {
+export const searchProducts = async (req: Request, res: Response): Promise<void> => {
   try {
     const { q, category, minPrice, maxPrice } = req.query;
 
@@ -181,27 +231,40 @@ export const searchProducts = (req: Request, res: Response): void => {
       return;
     }
 
-    // Filter products by search query
-    let results = mockProducts.filter(product => {
-      const searchTerm = q.toLowerCase();
-      const matchesName = product.name.toLowerCase().includes(searchTerm);
-      const matchesDescription = product.description.toLowerCase().includes(searchTerm);
-      const matchesBrand = product.brand.toLowerCase().includes(searchTerm);
-      
-      return matchesName || matchesDescription || matchesBrand;
-    });
+    const searchTerm = q.toLowerCase();
+
+    // Build Prisma query
+    const where: any = {
+      OR: [
+        { name: { contains: searchTerm, mode: 'insensitive' } },
+        { description: { contains: searchTerm, mode: 'insensitive' } },
+        { brand: { contains: searchTerm, mode: 'insensitive' } }
+      ]
+    };
 
     // Filter by category if provided
     if (category && typeof category === 'string') {
-      results = results.filter(product => 
-        product.category.toLowerCase() === category.toLowerCase()
-      );
+      where.category = { equals: category, mode: 'insensitive' };
     }
 
-    // Filter by price range if provided
+    // Get all products matching search criteria
+    let products = await prisma.product.findMany({
+      where,
+      include: {
+        prices: {
+          orderBy: {
+            timestamp: 'desc'
+          }
+        }
+      }
+    });
+
+    // Filter by price range if provided (post-query filtering for price ranges)
     if (minPrice || maxPrice) {
-      results = results.filter(product => {
-        const prices = product.prices.map(p => p.price);
+      products = products.filter(product => {
+        if (product.prices.length === 0) return false;
+        
+        const prices = product.prices.map(p => Number(p.price));
         const minProductPrice = Math.min(...prices);
         const maxProductPrice = Math.max(...prices);
 
@@ -219,13 +282,16 @@ export const searchProducts = (req: Request, res: Response): void => {
       });
     }
 
+    const formattedProducts = products.map(formatProduct);
+
     res.json({
       success: true,
       query: q,
-      count: results.length,
-      data: results
+      count: formattedProducts.length,
+      data: formattedProducts
     });
   } catch (error) {
+    console.error('Error searching products:', error);
     res.status(500).json({
       success: false,
       message: 'Error searching products',
@@ -296,7 +362,7 @@ export const searchProducts = (req: Request, res: Response): void => {
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-export const compareProducts = (req: Request, res: Response): void => {
+export const compareProducts = async (req: Request, res: Response): Promise<void> => {
   try {
     const { productIds }: CompareRequest = req.body;
 
@@ -308,12 +374,21 @@ export const compareProducts = (req: Request, res: Response): void => {
       return;
     }
 
-    // Find all requested products
-    const products = productIds
-      .map(id => mockProducts.find(p => p.id === id))
-      .filter((p): p is Product => p !== undefined);
+    // Find all requested products from database
+    const prismaProducts = await prisma.product.findMany({
+      where: {
+        id: { in: productIds }
+      },
+      include: {
+        prices: {
+          orderBy: {
+            timestamp: 'desc'
+          }
+        }
+      }
+    });
 
-    if (products.length === 0) {
+    if (prismaProducts.length === 0) {
       res.status(404).json({
         success: false,
         message: 'No valid products found for comparison'
@@ -321,11 +396,13 @@ export const compareProducts = (req: Request, res: Response): void => {
       return;
     }
 
+    const products = prismaProducts.map(formatProduct);
+
     // Find the cheapest price across all products
     let cheapest = {
       productId: products[0].id,
-      store: products[0].prices[0].store,
-      price: products[0].prices[0].price
+      store: products[0].prices[0]?.store || '',
+      price: products[0].prices[0]?.price || Infinity
     };
 
     // Calculate price range
@@ -352,8 +429,8 @@ export const compareProducts = (req: Request, res: Response): void => {
       comparison: {
         cheapest,
         priceRange: {
-          min: minPrice,
-          max: maxPrice
+          min: minPrice === Infinity ? 0 : minPrice,
+          max: maxPrice === -Infinity ? 0 : maxPrice
         }
       }
     };
@@ -363,6 +440,7 @@ export const compareProducts = (req: Request, res: Response): void => {
       data: response
     });
   } catch (error) {
+    console.error('Error comparing products:', error);
     res.status(500).json({
       success: false,
       message: 'Error comparing products',

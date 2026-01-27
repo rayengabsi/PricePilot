@@ -5,6 +5,7 @@
 
 import { Router } from 'express';
 import productRoutes from './productRoutes';
+import authRoutes from './authRoutes';
 import { healthCheck } from '../controllers/healthController';
 import { searchProducts, compareProducts } from '../controllers/productController';
 
@@ -12,6 +13,9 @@ const router = Router();
 
 // Health check endpoint
 router.get('/health', healthCheck);
+
+// Authentication routes
+router.use('/auth', authRoutes);
 
 // Product routes
 router.use('/products', productRoutes);
