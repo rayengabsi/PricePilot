@@ -12,6 +12,7 @@ A complete Express.js + TypeScript API for price comparison, built for the Price
 - ✅ Security middleware (Helmet, CORS)
 - ✅ Error handling
 - ✅ Health check endpoint
+- ✅ **Swagger/OpenAPI documentation** with interactive UI
 
 ## Installation
 
@@ -26,6 +27,17 @@ npm run dev
 ```
 
 The API will run on `http://localhost:3000`
+
+### API Documentation
+
+Interactive Swagger UI documentation is available at:
+- **Swagger UI**: `http://localhost:3000/api-docs`
+
+The Swagger UI provides:
+- Complete API documentation with all endpoints
+- Interactive "Try it out" feature to test endpoints directly
+- Request/response schemas and examples
+- TypeScript interface definitions
 
 ## Build
 
@@ -70,7 +82,7 @@ curl http://localhost:3000/api/products/1
 
 ### Search products
 ```bash
-curl "http://localhost:3000/api/products/search?q=iphone"
+curl "http://localhost:3000/api/search?q=iphone"
 ```
 
 ### Compare products
@@ -99,3 +111,5 @@ src/
 - CORS
 - Helmet
 - dotenv
+- Swagger UI Express
+- Swagger JSDoc

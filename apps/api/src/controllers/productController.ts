@@ -8,7 +8,25 @@ import { mockProducts } from '../utils/mockData';
 import { Product, CompareRequest, CompareResponse } from '../types';
 
 /**
- * Get all products
+ * @swagger
+ * /api/products:
+ *   get:
+ *     summary: Get all products
+ *     description: Retrieves a list of all available products with their prices from multiple stores
+ *     tags: [Products]
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved products
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ProductsResponse'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 export const getAllProducts = (req: Request, res: Response): void => {
   try {
@@ -27,7 +45,42 @@ export const getAllProducts = (req: Request, res: Response): void => {
 };
 
 /**
- * Get a single product by ID
+ * @swagger
+ * /api/products/{id}:
+ *   get:
+ *     summary: Get a single product by ID
+ *     description: Retrieves detailed information about a specific product including prices from all available stores
+ *     tags: [Products]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Unique product identifier
+ *         example: "1"
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved product
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ProductResponse'
+ *       404:
+ *         description: Product not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               success: false
+ *               message: "Product with ID 999 not found"
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 export const getProductById = (req: Request, res: Response): void => {
   try {
@@ -56,7 +109,65 @@ export const getProductById = (req: Request, res: Response): void => {
 };
 
 /**
- * Search products by query string
+ * @swagger
+ * /api/search:
+ *   get:
+ *     summary: Search products
+ *     description: Search for products by name, description, or brand. Supports filtering by category and price range.
+ *     tags: [Search]
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Search query string (searches in product name, description, and brand)
+ *         example: "iphone"
+ *       - in: query
+ *         name: category
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Filter by product category
+ *         example: "Smartphones"
+ *       - in: query
+ *         name: minPrice
+ *         required: false
+ *         schema:
+ *           type: number
+ *           format: float
+ *         description: Minimum price filter
+ *         example: 500
+ *       - in: query
+ *         name: maxPrice
+ *         required: false
+ *         schema:
+ *           type: number
+ *           format: float
+ *         description: Maximum price filter
+ *         example: 1500
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved search results
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SearchResponse'
+ *       400:
+ *         description: Bad request - missing or invalid query parameter
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               success: false
+ *               message: 'Query parameter "q" is required'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 export const searchProducts = (req: Request, res: Response): void => {
   try {
@@ -124,7 +235,66 @@ export const searchProducts = (req: Request, res: Response): void => {
 };
 
 /**
- * Compare multiple products
+ * @swagger
+ * /api/compare:
+ *   post:
+ *     summary: Compare multiple products
+ *     description: Compare prices across multiple products and find the cheapest option. Returns detailed comparison including price ranges and best deals.
+ *     tags: [Compare]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CompareRequest'
+ *           example:
+ *             productIds: ["1", "2", "3"]
+ *     responses:
+ *       200:
+ *         description: Successfully compared products
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/CompareResponse'
+ *             example:
+ *               success: true
+ *               data:
+ *                 products:
+ *                   - id: "1"
+ *                     name: "iPhone 15 Pro"
+ *                     prices: [...]
+ *                 comparison:
+ *                   cheapest:
+ *                     productId: "1"
+ *                     store: "Walmart"
+ *                     price: 979.00
+ *                   priceRange:
+ *                     min: 979.00
+ *                     max: 1199.99
+ *       400:
+ *         description: Bad request - invalid or empty productIds array
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               success: false
+ *               message: "productIds array is required and must not be empty"
+ *       404:
+ *         description: No valid products found for comparison
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               success: false
+ *               message: "No valid products found for comparison"
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 export const compareProducts = (req: Request, res: Response): void => {
   try {

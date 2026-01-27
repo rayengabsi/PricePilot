@@ -7,6 +7,8 @@ import express, { Express } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
+import swaggerUi from 'swagger-ui-express';
+import { swaggerSpec } from './config/swagger';
 import routes from './routes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 
@@ -29,6 +31,19 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Swagger/OpenAPI documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'PricePilot API Documentation',
+  customfavIcon: '/favicon.ico',
+  swaggerOptions: {
+    persistAuthorization: true,
+    displayRequestDuration: true,
+    filter: true,
+    tryItOutEnabled: true
+  }
+}));
+
 // API routes
 app.use('/api', routes);
 
@@ -37,6 +52,7 @@ app.get('/', (req, res) => {
   res.json({
     message: 'Welcome to PricePilot API',
     version: '1.0.0',
+    documentation: '/api-docs',
     endpoints: {
       health: '/api/health',
       products: '/api/products',
@@ -56,6 +72,7 @@ app.listen(PORT, () => {
   console.log(`🚀 PricePilot API server running on port ${PORT}`);
   console.log(`📍 Health check: http://localhost:${PORT}/api/health`);
   console.log(`📍 Products: http://localhost:${PORT}/api/products`);
+  console.log(`📚 API Documentation: http://localhost:${PORT}/api-docs`);
 });
 
 export default app;
