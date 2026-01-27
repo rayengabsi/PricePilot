@@ -50,6 +50,14 @@ const options: swaggerJsdoc.Options = {
       }
     ],
     components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          description: 'Enter JWT token obtained from /api/auth/login'
+        }
+      },
       schemas: {
         Price: {
           type: 'object',

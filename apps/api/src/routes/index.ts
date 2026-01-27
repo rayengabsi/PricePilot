@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import productRoutes from './productRoutes';
 import authRoutes from './authRoutes';
+import userRoutes from './userRoutes';
 import { healthCheck } from '../controllers/healthController';
 import { searchProducts, compareProducts } from '../controllers/productController';
 
@@ -16,6 +17,9 @@ router.get('/health', healthCheck);
 
 // Authentication routes
 router.use('/auth', authRoutes);
+
+// User routes (protected)
+router.use('/users', userRoutes);
 
 // Product routes
 router.use('/products', productRoutes);
