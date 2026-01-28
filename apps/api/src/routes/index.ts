@@ -9,7 +9,7 @@ import authRoutes from './authRoutes';
 import userRoutes from './userRoutes';
 import priceAlertRoutes from './priceAlertRoutes';
 import { healthCheck } from '../controllers/healthController';
-import { searchProducts, compareProducts } from '../controllers/productController';
+import { searchProducts, compareProducts, testBestBuySearch } from '../controllers/productController';
 
 const router = Router();
 
@@ -33,5 +33,8 @@ router.get('/search', searchProducts);
 
 // Compare endpoint - POST /api/compare
 router.post('/compare', compareProducts);
+
+// Best Buy API test endpoint - GET /api/bestbuy/search?q=query
+router.get('/bestbuy/search', testBestBuySearch);
 
 export default router;

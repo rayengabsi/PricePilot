@@ -6,6 +6,7 @@
 import { Request, Response } from 'express';
 import prisma from '../services/database.service';
 import { Product, CompareRequest, CompareResponse, Price } from '../types';
+import { searchProducts as searchBestBuy, getApiUsage } from '../services/bestbuy.service';
 
 /**
  * Helper function to convert Prisma product to API format
@@ -275,13 +276,38 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
       });
     }
 
-    const formattedProducts = products.map(formatProduct);
+    let formattedProducts = products.map(formatProduct);
+
+    // If we have less than 5 results, search Best Buy API
+    if (formattedProducts.length < 5) {
+      try {
+        console.log(`🔍 Database returned ${formattedProducts.length} results, searching Best Buy API...`);
+        
+        const bestBuyProducts = await searchBestBuy(q, 10);
+        
+        // Merge Best Buy results with database results
+        // Avoid duplicates by checking product names
+        const existingNames = new Set(formattedProducts.map(p => p.name.toLowerCase()));
+        const newProducts = bestBuyProducts.filter(p => !existingNames.has(p.name.toLowerCase()));
+        
+        formattedProducts = [...formattedProducts, ...newProducts];
+        
+        console.log(`✅ Added ${newProducts.length} products from Best Buy API`);
+      } catch (error) {
+        console.error('Error fetching from Best Buy API:', error);
+        // Continue with database results only - don't fail the request
+      }
+    }
 
     res.json({
       success: true,
       query: q,
       count: formattedProducts.length,
-      data: formattedProducts
+      data: formattedProducts,
+      sources: {
+        database: products.length,
+        bestBuy: formattedProducts.length - products.length
+      }
     });
   } catch (error) {
     console.error('Error searching products:', error);
@@ -417,6 +443,88 @@ export const compareProducts = async (req: Request, res: Response): Promise<void
       success: false,
       message: 'Error comparing products',
       error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
+/**
+ * @swagger
+ * /api/bestbuy/search:
+ *   get:
+ *     summary: Test Best Buy API search
+ *     description: Returns raw Best Buy API results for testing purposes. This endpoint directly queries the Best Buy API without database integration.
+ *     tags: [Products]
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Search query
+ *         example: iphone
+ *       - in: query
+ *         name: limit
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Maximum number of results
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved Best Buy API results
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: 'boolean', example: true }
+ *                 query: { type: 'string', example: 'iphone' }
+ *                 count: { type: 'integer', example: 10 }
+ *                 apiUsage: 
+ *                   type: object
+ *                   properties:
+ *                     calls: { type: 'integer', example: 5 }
+ *                     limit: { type: 'integer', example: 5000 }
+ *                     remaining: { type: 'integer', example: 4995 }
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Product'
+ *       400:
+ *         description: Bad request - missing query parameter
+ *       500:
+ *         description: Internal server error or Best Buy API error
+ */
+export const testBestBuySearch = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { q, limit } = req.query;
+
+    if (!q || typeof q !== 'string') {
+      res.status(400).json({
+        success: false,
+        message: 'Query parameter "q" is required'
+      });
+      return;
+    }
+
+    const limitNum = limit ? parseInt(limit as string, 10) : 10;
+    const products = await searchBestBuy(q, limitNum);
+    const apiUsage = getApiUsage();
+
+    res.json({
+      success: true,
+      query: q,
+      count: products.length,
+      apiUsage,
+      data: products
+    });
+  } catch (error) {
+    console.error('Error testing Best Buy API:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error querying Best Buy API',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      apiUsage: getApiUsage()
     });
   }
 };

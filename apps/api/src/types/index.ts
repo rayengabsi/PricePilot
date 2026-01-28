@@ -47,3 +47,27 @@ export interface CompareResponse {
     };
   };
 }
+
+// Best Buy API Types
+export interface BestBuyApiResponse {
+  products: BestBuyProduct[];
+  total: number;
+  totalPages: number;
+  currentPage: number;
+}
+
+export interface BestBuyProduct {
+  sku: number;
+  name: string;
+  salePrice: number;
+  regularPrice?: number;
+  url: string;
+  image: string;
+  categoryPath?: Array<{ id: string; name: string }>;
+  shortDescription?: string;
+  longDescription?: string;
+  brand?: string;
+  modelNumber?: string;
+  inStoreAvailability?: boolean;
+  onlineAvailability?: boolean;
+}

@@ -5,6 +5,7 @@
 
 import * as cron from 'node-cron';
 import { processPriceAlerts } from './priceAlert.service';
+import { updateBestBuyPrices } from './bestbuy.service';
 
 let priceCheckJob: ReturnType<typeof cron.schedule> | null = null;
 let isRunning = false;
@@ -49,6 +50,23 @@ const runPriceCheck = async (): Promise<number> => {
   try {
     console.log('🔄 Starting scheduled price check...');
     
+    // Update Best Buy prices first (daily updates)
+    try {
+      const now = new Date();
+      const hours = now.getUTCHours();
+      
+      // Run Best Buy price updates once per day at 2 AM UTC
+      if (hours === 2) {
+        console.log('🔄 Updating Best Buy product prices...');
+        const bbUpdateResult = await updateBestBuyPrices();
+        console.log(`✅ Best Buy prices updated: ${bbUpdateResult.updated} products, ${bbUpdateResult.errors} errors`);
+      }
+    } catch (bbError) {
+      console.error('⚠️  Error updating Best Buy prices (continuing with alert check):', bbError);
+      // Don't fail the entire check if Best Buy update fails
+    }
+    
+    // Check price alerts
     const triggeredCount = await processPriceAlerts();
     
     const duration = Date.now() - startTime;
