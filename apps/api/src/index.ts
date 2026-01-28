@@ -11,6 +11,7 @@ import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './config/swagger';
 import routes from './routes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { startPriceCheckScheduler, stopPriceCheckScheduler } from './services/scheduler.service';
 
 // Load environment variables
 dotenv.config();
@@ -74,11 +75,33 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 // Start server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`🚀 PricePilot API server running on port ${PORT}`);
   console.log(`📍 Health check: http://localhost:${PORT}/api/health`);
   console.log(`📍 Products: http://localhost:${PORT}/api/products`);
   console.log(`📚 API Documentation: http://localhost:${PORT}/api-docs`);
+  
+  // Start price check scheduler
+  startPriceCheckScheduler();
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('🛑 SIGTERM received, shutting down gracefully...');
+  stopPriceCheckScheduler();
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('🛑 SIGINT received, shutting down gracefully...');
+  stopPriceCheckScheduler();
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
 });
 
 export default app;

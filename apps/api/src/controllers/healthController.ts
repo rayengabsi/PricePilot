@@ -5,6 +5,7 @@
 
 import { Request, Response } from 'express';
 import prisma from '../services/database.service';
+import { getSchedulerStatus } from '../services/scheduler.service';
 
 /**
  * @swagger
@@ -50,10 +51,19 @@ export const healthCheck = async (req: Request, res: Response): Promise<void> =>
     // Check database connection
     await prisma.$queryRaw`SELECT 1`;
 
+    // Get scheduler status
+    const schedulerStatus = getSchedulerStatus();
+
     res.json({
       status: 'healthy',
       service: 'PricePilot API',
       database: 'connected',
+      scheduler: {
+        enabled: schedulerStatus.isEnabled,
+        running: schedulerStatus.isRunning,
+        checkInProgress: schedulerStatus.checkInProgress,
+        interval: schedulerStatus.interval
+      },
       timestamp: new Date().toISOString()
     });
   } catch (error) {
