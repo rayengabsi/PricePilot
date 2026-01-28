@@ -7,6 +7,7 @@ import { Router } from 'express';
 import productRoutes from './productRoutes';
 import authRoutes from './authRoutes';
 import userRoutes from './userRoutes';
+import priceAlertRoutes from './priceAlertRoutes';
 import { healthCheck } from '../controllers/healthController';
 import { searchProducts, compareProducts } from '../controllers/productController';
 
@@ -23,6 +24,9 @@ router.use('/users', userRoutes);
 
 // Product routes
 router.use('/products', productRoutes);
+
+// Price alert routes (protected)
+router.use('/alerts', priceAlertRoutes);
 
 // Search endpoint - GET /api/search?q=query
 router.get('/search', searchProducts);

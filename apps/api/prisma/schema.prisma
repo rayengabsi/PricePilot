@@ -75,6 +75,8 @@ model PriceAlert {
   productId  String
   targetPrice Decimal  @db.Decimal(10, 2)
   isActive   Boolean  @default(true)
+  status     String   @default("active") // active, triggered, cancelled
+  triggeredAt DateTime?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -85,6 +87,8 @@ model PriceAlert {
   @@index([userId])
   @@index([productId])
   @@index([isActive])
+  @@index([status])
   @@index([userId, isActive])
+  @@index([userId, status])
   @@map("price_alerts")
 }

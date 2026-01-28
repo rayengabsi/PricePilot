@@ -29,7 +29,6 @@ const formatProduct = (prismaProduct: any): Product => {
     }))
   };
 };
-
 /**
  * @swagger
  * /api/products:
@@ -97,7 +96,7 @@ export const getAllProducts = async (req: Request, res: Response): Promise<void>
  *         schema:
  *           type: string
  *         description: Unique product identifier
- *         example: "1"
+ *         example: "550e8400-e29b-41d4-a716-446655440000"
  *     responses:
  *       200:
  *         description: Successfully retrieved product
@@ -111,9 +110,6 @@ export const getAllProducts = async (req: Request, res: Response): Promise<void>
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               success: false
- *               message: "Product with ID 999 not found"
  *       500:
  *         description: Internal server error
  *         content:
@@ -209,9 +205,6 @@ export const getProductById = async (req: Request, res: Response): Promise<void>
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               success: false
- *               message: 'Query parameter "q" is required'
  *       500:
  *         description: Internal server error
  *         content:
@@ -314,7 +307,7 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
  *           schema:
  *             $ref: '#/components/schemas/CompareRequest'
  *           example:
- *             productIds: ["1", "2", "3"]
+ *             productIds: ["550e8400-e29b-41d4-a716-446655440000", "550e8400-e29b-41d4-a716-446655440001"]
  *     responses:
  *       200:
  *         description: Successfully compared products
@@ -322,39 +315,18 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/CompareResponse'
- *             example:
- *               success: true
- *               data:
- *                 products:
- *                   - id: "1"
- *                     name: "iPhone 15 Pro"
- *                     prices: [...]
- *                 comparison:
- *                   cheapest:
- *                     productId: "1"
- *                     store: "Walmart"
- *                     price: 979.00
- *                   priceRange:
- *                     min: 979.00
- *                     max: 1199.99
  *       400:
  *         description: Bad request - invalid or empty productIds array
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               success: false
- *               message: "productIds array is required and must not be empty"
  *       404:
  *         description: No valid products found for comparison
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               success: false
- *               message: "No valid products found for comparison"
  *       500:
  *         description: Internal server error
  *         content:
@@ -444,6 +416,116 @@ export const compareProducts = async (req: Request, res: Response): Promise<void
     res.status(500).json({
       success: false,
       message: 'Error comparing products',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
+/**
+ * @swagger
+ * /api/products/{id}/update-price:
+ *   post:
+ *     summary: Update product price (Testing)
+ *     description: Updates or creates a price entry for a product. Used for testing price alerts by simulating price changes.
+ *     tags: [Products]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Product ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - price
+ *               - store
+ *             properties:
+ *               price:
+ *                 type: number
+ *                 format: float
+ *                 example: 799.99
+ *               store:
+ *                 type: string
+ *                 example: "Amazon"
+ *               storeUrl:
+ *                 type: string
+ *                 format: uri
+ *                 example: "https://amazon.com/product"
+ *               inStock:
+ *                 type: boolean
+ *                 default: true
+ *     responses:
+ *       200:
+ *         description: Price updated successfully
+ *       400:
+ *         description: Bad request
+ *       404:
+ *         description: Product not found
+ *       500:
+ *         description: Internal server error
+ */
+export const updateProductPrice = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { price, store, storeUrl, inStock } = req.body;
+
+    // Validation
+    if (!price || !store) {
+      res.status(400).json({
+        success: false,
+        message: 'price and store are required'
+      });
+      return;
+    }
+
+    if (typeof price !== 'number' || price <= 0) {
+      res.status(400).json({
+        success: false,
+        message: 'price must be a positive number'
+      });
+      return;
+    }
+
+    // Verify product exists
+    const product = await prisma.product.findUnique({
+      where: { id }
+    });
+
+    if (!product) {
+      res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+      return;
+    }
+
+    // Create or update price entry
+    const priceEntry = await prisma.price.create({
+      data: {
+        productId: id,
+        price,
+        store,
+        storeUrl: storeUrl || `https://${store.toLowerCase()}.com/product`,
+        inStock: inStock !== undefined ? inStock : true,
+        currency: 'USD'
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'Price updated successfully',
+      data: { price: priceEntry }
+    });
+  } catch (error) {
+    console.error('Error updating product price:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating product price',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }

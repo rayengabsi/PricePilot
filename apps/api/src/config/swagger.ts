@@ -4,6 +4,7 @@
  */
 
 import swaggerJsdoc from 'swagger-jsdoc';
+import path from 'path';
 
 const options: swaggerJsdoc.Options = {
   definition: {
@@ -37,6 +38,14 @@ const options: swaggerJsdoc.Options = {
         description: 'Health check endpoints'
       },
       {
+        name: 'Auth',
+        description: 'Authentication endpoints'
+      },
+      {
+        name: 'Users',
+        description: 'User profile endpoints'
+      },
+      {
         name: 'Products',
         description: 'Product management and retrieval endpoints'
       },
@@ -47,6 +56,10 @@ const options: swaggerJsdoc.Options = {
       {
         name: 'Compare',
         description: 'Product comparison endpoints'
+      },
+      {
+        name: 'Price Alerts',
+        description: 'Price alert management endpoints'
       }
     ],
     components: {
@@ -326,11 +339,79 @@ const options: swaggerJsdoc.Options = {
               description: 'Detailed error information (only in development)'
             }
           }
+        },
+        PriceAlert: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              example: '550e8400-e29b-41d4-a716-446655440000'
+            },
+            userId: {
+              type: 'string',
+              example: '550e8400-e29b-41d4-a716-446655440000'
+            },
+            productId: {
+              type: 'string',
+              example: '550e8400-e29b-41d4-a716-446655440000'
+            },
+            targetPrice: {
+              type: 'number',
+              format: 'float',
+              example: 800.00
+            },
+            isActive: {
+              type: 'boolean',
+              example: true
+            },
+            status: {
+              type: 'string',
+              enum: ['active', 'triggered', 'cancelled'],
+              example: 'active'
+            },
+            triggeredAt: {
+              type: 'string',
+              format: 'date-time',
+              nullable: true
+            },
+            createdAt: {
+              type: 'string',
+              format: 'date-time'
+            },
+            updatedAt: {
+              type: 'string',
+              format: 'date-time'
+            }
+          }
+        },
+        PriceAlertResponse: {
+          type: 'object',
+          properties: {
+            success: {
+              type: 'boolean',
+              example: true
+            },
+            message: {
+              type: 'string',
+              example: 'Price alert created successfully'
+            },
+            data: {
+              type: 'object',
+              properties: {
+                alert: {
+                  $ref: '#/components/schemas/PriceAlert'
+                }
+              }
+            }
+          }
         }
       }
     }
   },
-  apis: ['./src/routes/*.ts', './src/controllers/*.ts']
+  apis: [
+    path.join(__dirname, '../routes/*.ts'),
+    path.join(__dirname, '../controllers/*.ts')
+  ]
 };
 
 export const swaggerSpec = swaggerJsdoc(options);
