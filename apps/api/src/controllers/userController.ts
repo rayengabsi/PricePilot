@@ -67,6 +67,7 @@ export const getProfile = async (req: AuthRequest, res: Response): Promise<void>
         id: true,
         email: true,
         name: true,
+        emailNotifications: true,
         createdAt: true,
         updatedAt: true
       }

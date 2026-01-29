@@ -60,6 +60,10 @@ const options: swaggerJsdoc.Options = {
       {
         name: 'Price Alerts',
         description: 'Price alert management endpoints'
+      },
+      {
+        name: 'Email',
+        description: 'Email test and template preview endpoints'
       }
     ],
     components: {

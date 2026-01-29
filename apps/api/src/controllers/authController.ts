@@ -7,6 +7,7 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import prisma from '../services/database.service';
+import { sendWelcomeEmail, isEmailEnabled } from '../services/email.service';
 
 /**
  * @swagger
@@ -107,12 +108,13 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-    // Create user
+    // Create user (emailNotifications defaults to true in schema)
     const user = await prisma.user.create({
       data: {
         email,
         password: hashedPassword,
-        name: name || null
+        name: name || null,
+        emailNotifications: true
       },
       select: {
         id: true,
@@ -121,6 +123,15 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         createdAt: true
       }
     });
+
+    // Send welcome email if email is enabled
+    if (isEmailEnabled()) {
+      sendWelcomeEmail({
+        id: user.id,
+        email: user.email,
+        name: user.name
+      }).catch((err) => console.error('Welcome email failed:', err));
+    }
 
     res.status(201).json({
       success: true,

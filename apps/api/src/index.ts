@@ -12,6 +12,7 @@ import { swaggerSpec } from './config/swagger';
 import routes from './routes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { startPriceCheckScheduler, stopPriceCheckScheduler } from './services/scheduler.service';
+import { initializeEmailService } from './services/email.service';
 
 // Load environment variables
 dotenv.config();
@@ -75,12 +76,15 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 // Start server
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, async () => {
   console.log(`🚀 PricePilot API server running on port ${PORT}`);
   console.log(`📍 Health check: http://localhost:${PORT}/api/health`);
   console.log(`📍 Products: http://localhost:${PORT}/api/products`);
   console.log(`📚 API Documentation: http://localhost:${PORT}/api-docs`);
-  
+
+  // Initialize email (Ethereal) so credentials are logged on every startup
+  await initializeEmailService();
+
   // Start price check scheduler
   startPriceCheckScheduler();
 });

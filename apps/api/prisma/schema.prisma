@@ -11,12 +11,13 @@ datasource db {
 
 // User model for authentication
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  name      String?
-  password  String   // hashed password
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                 String   @id @default(uuid())
+  email              String   @unique
+  name               String?
+  password           String   // hashed password
+  emailNotifications Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   // Relations
   priceAlerts PriceAlert[]

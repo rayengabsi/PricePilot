@@ -4,14 +4,17 @@
  */
 
 import prisma from './database.service';
+import { sendPriceAlertEmail, isEmailEnabled } from './email.service';
 
 export interface AlertNotification {
   alertId: string;
   userId: string;
   productId: string;
   productName: string;
+  productImageUrl: string | null;
   targetPrice: number;
   currentPrice: number;
+  oldPrice: number;
   store: string;
   storeUrl: string;
   triggeredAt: Date;
@@ -36,7 +39,7 @@ export const checkPriceAlerts = async (): Promise<AlertNotification[]> => {
               orderBy: {
                 timestamp: 'desc'
               },
-              take: 1 // Get only the latest price per store
+              take: 50
             }
           }
         },
@@ -53,27 +56,46 @@ export const checkPriceAlerts = async (): Promise<AlertNotification[]> => {
     const triggeredAlerts: AlertNotification[] = [];
 
     for (const alert of activeAlerts) {
-      // Get the lowest current price across all stores
-      if (alert.product.prices.length === 0) {
-        continue; // No prices available
+      // Get latest price per store (prices are ordered by timestamp desc)
+      const latestByStore = new Map<string, (typeof alert.product.prices)[0]>();
+      for (const price of alert.product.prices) {
+        if (!latestByStore.has(price.store)) {
+          latestByStore.set(price.store, price);
+        }
       }
 
-      // Find the lowest price
-      let lowestPrice = Number(alert.product.prices[0].price);
-      let lowestPriceStore = alert.product.prices[0].store;
-      let lowestPriceUrl = alert.product.prices[0].storeUrl;
+      if (latestByStore.size === 0) {
+        continue;
+      }
 
-      for (const price of alert.product.prices) {
+      // Find the lowest price across stores (in stock)
+      let lowestPrice = Infinity;
+      let lowestPriceStore = '';
+      let lowestPriceUrl = '';
+      for (const price of latestByStore.values()) {
         const priceValue = Number(price.price);
-        if (priceValue < lowestPrice && price.inStock) {
+        if (price.inStock && priceValue < lowestPrice) {
           lowestPrice = priceValue;
           lowestPriceStore = price.store;
           lowestPriceUrl = price.storeUrl;
         }
       }
+      if (lowestPrice === Infinity) continue;
 
       // Check if current price is <= target price
       if (lowestPrice <= Number(alert.targetPrice)) {
+        // Get previous price at this store for "old vs new" in email
+        const previousPrices = await prisma.price.findMany({
+          where: {
+            productId: alert.productId,
+            store: lowestPriceStore
+          },
+          orderBy: { timestamp: 'desc' },
+          take: 2
+        });
+        const oldPrice =
+          previousPrices.length >= 2 ? Number(previousPrices[1].price) : lowestPrice;
+
         // Mark alert as triggered
         await prisma.priceAlert.update({
           where: { id: alert.id },
@@ -89,8 +111,10 @@ export const checkPriceAlerts = async (): Promise<AlertNotification[]> => {
           userId: alert.userId,
           productId: alert.productId,
           productName: alert.product.name,
+          productImageUrl: alert.product.imageUrl ?? null,
           targetPrice: Number(alert.targetPrice),
           currentPrice: lowestPrice,
+          oldPrice,
           store: lowestPriceStore,
           storeUrl: lowestPriceUrl,
           triggeredAt: new Date()
@@ -106,18 +130,19 @@ export const checkPriceAlerts = async (): Promise<AlertNotification[]> => {
 };
 
 /**
- * Send notifications for triggered alerts
- * Currently logs to console, can be extended for email/push notifications
+ * Send notifications for triggered alerts (console + email)
  */
 export const sendNotifications = async (notifications: AlertNotification[]): Promise<void> => {
   try {
     for (const notification of notifications) {
-      // Get user details for notification
+      // Get user details including email preference
       const user = await prisma.user.findUnique({
         where: { id: notification.userId },
         select: {
+          id: true,
           email: true,
-          name: true
+          name: true,
+          emailNotifications: true
         }
       });
 
@@ -126,7 +151,7 @@ export const sendNotifications = async (notifications: AlertNotification[]): Pro
         continue;
       }
 
-      // Log notification (replace with email/push notification service later)
+      // Log notification
       console.log('🔔 PRICE ALERT TRIGGERED!');
       console.log(`   User: ${user.name || user.email}`);
       console.log(`   Product: ${notification.productName}`);
@@ -136,11 +161,18 @@ export const sendNotifications = async (notifications: AlertNotification[]): Pro
       console.log(`   Triggered At: ${notification.triggeredAt.toISOString()}`);
       console.log('---');
 
-      // TODO: Send email notification
-      // await emailService.sendPriceAlert(user.email, notification);
-
-      // TODO: Send push notification
-      // await pushService.sendPriceAlert(user.id, notification);
+      // Send email if enabled and user has email notifications on
+      if (isEmailEnabled() && user.emailNotifications !== false) {
+        await sendPriceAlertEmail(
+          { id: user.id, email: user.email, name: user.name },
+          notification.productName,
+          notification.productImageUrl,
+          notification.store,
+          notification.storeUrl,
+          notification.oldPrice,
+          notification.currentPrice
+        );
+      }
     }
 
     console.log(`✅ Processed ${notifications.length} price alert notification(s)`);

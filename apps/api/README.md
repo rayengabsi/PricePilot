@@ -57,7 +57,11 @@ PORT=3000
 CORS_ORIGIN="*"
 ENABLE_PRICE_CHECK=true
 PRICE_CHECK_INTERVAL="0 * * * *"
+EMAIL_ENABLED=true
+EMAIL_FROM=noreply@pricepilot.com
 ```
+
+**Email (development):** When `EMAIL_ENABLED=true` and no SMTP vars are set, the API uses [Ethereal.email](https://ethereal.email) automatically. View sent emails at https://ethereal.email (credentials are logged on first send).
 
 ### 2. Setup Prisma
 

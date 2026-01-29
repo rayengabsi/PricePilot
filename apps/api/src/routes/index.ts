@@ -8,6 +8,7 @@ import productRoutes from './productRoutes';
 import authRoutes from './authRoutes';
 import userRoutes from './userRoutes';
 import priceAlertRoutes from './priceAlertRoutes';
+import emailRoutes from './emailRoutes';
 import { healthCheck } from '../controllers/healthController';
 import { searchProducts, compareProducts, testBestBuySearch } from '../controllers/productController';
 
@@ -27,6 +28,9 @@ router.use('/products', productRoutes);
 
 // Price alert routes (protected)
 router.use('/alerts', priceAlertRoutes);
+
+// Email test & template preview
+router.use('/email', emailRoutes);
 
 // Search endpoint - GET /api/search?q=query
 router.get('/search', searchProducts);
