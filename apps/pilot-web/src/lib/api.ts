@@ -133,17 +133,31 @@ export interface SearchResponse {
   sources: { database: number; bestBuy: number };
 }
 
+export interface AlertProduct {
+  id: string;
+  name: string;
+  brand: string;
+  category?: string;
+  imageUrl?: string | null;
+  prices?: Array<{ price: number; store: string; currency?: string }>;
+}
+
+export interface Alert {
+  id: string;
+  productId: string;
+  targetPrice: number;
+  isActive: boolean;
+  status: 'active' | 'triggered' | 'cancelled';
+  triggeredAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  product?: AlertProduct;
+}
+
 export interface AlertsListResponse {
   success: boolean;
   count: number;
-  data: Array<{
-    id: string;
-    productId: string;
-    targetPrice: number;
-    isActive: boolean;
-    status: string;
-    product?: { id: string; name: string; brand: string };
-  }>;
+  data: Alert[];
 }
 
 export interface CreateAlertResponse {
