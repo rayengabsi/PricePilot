@@ -26,9 +26,10 @@ export function Header() {
           </span>
         </Link>
 
-        <nav className="flex items-center gap-4">
+        <nav className="flex items-center gap-2 sm:gap-4">
           {isAuth ? (
             <>
+              <div className="hidden lg:flex lg:items-center lg:gap-4">
               <Link
                 href="/dashboard"
                 className={`text-sm font-medium transition ${
@@ -77,9 +78,11 @@ export function Header() {
               <span className="text-sm text-slate-500 dark:text-slate-400">
                 {user?.email}
               </span>
+              </div>
               <button
                 onClick={clearAuth}
-                className="text-sm font-medium text-slate-600 hover:text-red-600 dark:text-slate-300 dark:hover:text-red-400"
+                className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-red-600 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-red-400 lg:px-0 lg:py-0 lg:hover:bg-transparent"
+                aria-label="Sign out"
               >
                 Sign out
               </button>

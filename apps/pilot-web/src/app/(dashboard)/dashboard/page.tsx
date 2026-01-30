@@ -124,7 +124,7 @@ export default function DashboardPage() {
                     : `${productsTracked} product${productsTracked !== 1 ? 's' : ''} tracked`
                 }
                 href="/alerts"
-                icon="🔔"
+                icon="bell"
                 accent="pilot"
               />
               <StatCard
@@ -132,22 +132,22 @@ export default function DashboardPage() {
                 value={triggered24h.length}
                 sub={triggered24h.length > 0 ? 'Price drops in last 24 hours' : undefined}
                 href="/alerts"
-                icon="📉"
-                accent="green"
+                icon="trending"
+                accent="success"
               />
               <StatCard
                 title="Money saved"
                 value={moneySaved > 0 ? `$${moneySaved.toFixed(2)}` : '$0.00'}
                 sub={moneySaved > 0 ? 'From triggered alerts' : undefined}
-                icon="💰"
-                accent="amber"
+                icon="dollar"
+                accent="warning"
               />
               <StatCard
                 title="Products tracked"
                 value={productsTracked}
                 sub={activeAlerts.length > 0 ? 'Unique products' : undefined}
                 href="/alerts"
-                icon="📦"
+                icon="package"
                 accent="sky"
               />
             </div>

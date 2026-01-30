@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { alertsApi, getApiErrorMessage, type Alert } from '@/lib/api';
 import { useAlertCountStore } from '@/lib/alert-count-store';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { Toast } from '@/components/ui/Toast';
 import { AlertTableRow } from '@/components/alerts/AlertTableRow';
 import { AlertCard } from '@/components/alerts/AlertCard';
 import { AlertRowSkeleton, AlertCardSkeleton } from '@/components/alerts/AlertSkeleton';
@@ -63,7 +64,6 @@ export default function AlertsPage() {
 
   function showToast(type: 'success' | 'error', message: string) {
     setToast({ type, message });
-    setTimeout(() => setToast(null), 4000);
   }
 
   function handleDeleteClick(alert: Alert) {
@@ -271,16 +271,13 @@ export default function AlertsPage() {
         />
       )}
 
-      {toast && (
-        <div
-          role="status"
-          className={`fixed bottom-6 right-6 z-50 max-w-sm rounded-lg px-4 py-3 shadow-lg ${
-            toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
-          }`}
-        >
-          {toast.message}
-        </div>
-      )}
+      <Toast
+        type={toast?.type ?? 'success'}
+        message={toast?.message ?? ''}
+        visible={!!toast}
+        onDismiss={() => setToast(null)}
+        duration={4000}
+      />
     </div>
   );
 }
