@@ -6,6 +6,7 @@
 import { Request, Response } from 'express';
 import prisma from '../services/database.service';
 import { getSchedulerStatus } from '../services/scheduler.service';
+import { checkBestBuyConnectivity } from '../services/bestbuy.service';
 
 /**
  * @swagger
@@ -72,6 +73,42 @@ export const healthCheck = async (req: Request, res: Response): Promise<void> =>
       status: 'unhealthy',
       service: 'PricePilot API',
       database: 'disconnected',
+      timestamp: new Date().toISOString(),
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
+/**
+ * Best Buy API health check – GET /api/health/bestbuy
+ */
+export const healthCheckBestBuy = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await checkBestBuyConnectivity();
+    if (result.ok) {
+      res.json({
+        status: 'healthy',
+        service: 'Best Buy API',
+        bestbuy: 'connected',
+        message: result.message,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(503).json({
+        status: 'unhealthy',
+        service: 'Best Buy API',
+        bestbuy: 'disconnected',
+        message: result.message,
+        error: result.error,
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch (error) {
+    console.error('Best Buy health check failed:', error);
+    res.status(503).json({
+      status: 'unhealthy',
+      service: 'Best Buy API',
+      bestbuy: 'error',
       timestamp: new Date().toISOString(),
       error: error instanceof Error ? error.message : 'Unknown error'
     });

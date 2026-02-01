@@ -4,6 +4,7 @@
  */
 
 import { Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import prisma from '../services/database.service';
 import { Product, CompareRequest, CompareResponse, Price } from '../types';
 import { searchProducts as searchBestBuy, getApiUsage } from '../services/bestbuy.service';
@@ -159,8 +160,8 @@ export const getProductById = async (req: Request, res: Response): Promise<void>
  * @swagger
  * /api/search:
  *   get:
- *     summary: Search products
- *     description: Search for products by name, description, or brand. Supports filtering by category and price range.
+ *     summary: Search products (Best Buy API only, live results)
+ *     description: Search for products via Best Buy API. No database; returns fresh API results only.
  *     tags: [Search]
  *     parameters:
  *       - in: query
@@ -168,55 +169,35 @@ export const getProductById = async (req: Request, res: Response): Promise<void>
  *         required: true
  *         schema:
  *           type: string
- *         description: Search query string (searches in product name, description, and brand)
+ *         description: Search query string
  *         example: "iphone"
  *       - in: query
- *         name: category
+ *         name: limit
  *         required: false
  *         schema:
- *           type: string
- *         description: Filter by product category
- *         example: "Smartphones"
- *       - in: query
- *         name: minPrice
- *         required: false
- *         schema:
- *           type: number
- *           format: float
- *         description: Minimum price filter
- *         example: 500
- *       - in: query
- *         name: maxPrice
- *         required: false
- *         schema:
- *           type: number
- *           format: float
- *         description: Maximum price filter
- *         example: 1500
+ *           type: integer
+ *           default: 10
+ *         description: Max results to return
  *     responses:
  *       200:
- *         description: Successfully retrieved search results
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/SearchResponse'
+ *         description: Search results (sources.database always 0, sources.bestBuy = count)
  *       400:
- *         description: Bad request - missing or invalid query parameter
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ *         description: Missing query parameter
  */
 export const searchProducts = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { q, category, minPrice, maxPrice } = req.query;
+  const { q, limit } = req.query;
 
+  const emptyResponse = (queryStr: string) => {
+    res.json({
+      success: true,
+      query: queryStr,
+      count: 0,
+      data: [],
+      sources: { database: 0, bestBuy: 0 }
+    });
+  };
+
+  try {
     if (!q || typeof q !== 'string') {
       res.status(400).json({
         success: false,
@@ -225,97 +206,21 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const searchTerm = q.toLowerCase();
+    const limitNum = limit ? Math.min(Math.max(parseInt(String(limit), 10) || 10, 1), 24) : 10;
+    console.log('[search] GET /api/search – Best Buy only:', { q, limit: limitNum });
 
-    // Build Prisma query
-    const where: any = {
-      OR: [
-        { name: { contains: searchTerm, mode: 'insensitive' } },
-        { description: { contains: searchTerm, mode: 'insensitive' } },
-        { brand: { contains: searchTerm, mode: 'insensitive' } }
-      ]
-    };
-
-    // Filter by category if provided
-    if (category && typeof category === 'string') {
-      where.category = { equals: category, mode: 'insensitive' };
-    }
-
-    // Get all products matching search criteria
-    let products = await prisma.product.findMany({
-      where,
-      include: {
-        prices: {
-          orderBy: {
-            timestamp: 'desc'
-          }
-        }
-      }
-    });
-
-    // Filter by price range if provided (post-query filtering for price ranges)
-    if (minPrice || maxPrice) {
-      products = products.filter(product => {
-        if (product.prices.length === 0) return false;
-        
-        const prices = product.prices.map(p => Number(p.price));
-        const minProductPrice = Math.min(...prices);
-        const maxProductPrice = Math.max(...prices);
-
-        if (minPrice && typeof minPrice === 'string') {
-          const min = parseFloat(minPrice);
-          if (maxProductPrice < min) return false;
-        }
-
-        if (maxPrice && typeof maxPrice === 'string') {
-          const max = parseFloat(maxPrice);
-          if (minProductPrice > max) return false;
-        }
-
-        return true;
-      });
-    }
-
-    let formattedProducts = products.map(formatProduct);
-
-    // If we have less than 5 results, search Best Buy API
-    if (formattedProducts.length < 5) {
-      try {
-        console.log(`🔍 Database returned ${formattedProducts.length} results, searching Best Buy API...`);
-        
-        const bestBuyProducts = await searchBestBuy(q, 10);
-        
-        // Merge Best Buy results with database results
-        // Avoid duplicates by checking product names
-        const existingNames = new Set(formattedProducts.map(p => p.name.toLowerCase()));
-        const newProducts = bestBuyProducts.filter(p => !existingNames.has(p.name.toLowerCase()));
-        
-        formattedProducts = [...formattedProducts, ...newProducts];
-        
-        console.log(`✅ Added ${newProducts.length} products from Best Buy API`);
-      } catch (error) {
-        console.error('Error fetching from Best Buy API:', error);
-        // Continue with database results only - don't fail the request
-      }
-    }
+    const data = await searchBestBuy(q, limitNum);
 
     res.json({
       success: true,
       query: q,
-      count: formattedProducts.length,
-      data: formattedProducts,
-      sources: {
-        database: products.length,
-        bestBuy: formattedProducts.length - products.length
-      }
+      count: data.length,
+      data,
+      sources: { database: 0, bestBuy: data.length }
     });
   } catch (error) {
-    console.error('Error searching products:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error searching products',
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
+    console.error('[search] Best Buy API error (returning empty results):', error);
+    emptyResponse(typeof q === 'string' ? q : '');
   }
 };
 

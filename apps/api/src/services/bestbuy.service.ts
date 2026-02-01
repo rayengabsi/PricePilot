@@ -9,31 +9,43 @@ import prisma from './database.service';
 const BESTBUY_API_KEY = process.env.BESTBUY_API_KEY;
 const BESTBUY_BASE_URL = process.env.BESTBUY_BASE_URL || 'https://api.bestbuy.com/v1';
 
-// Rate limiting tracking
+// Throttle: max 4 requests per second (250ms minimum between calls)
+const MIN_MS_BETWEEN_CALLS = 250;
+let lastCallTime = 0;
+
+const waitForThrottle = (): Promise<void> => {
+  return new Promise((resolve) => {
+    const now = Date.now();
+    const elapsed = now - lastCallTime;
+    const waitMs = Math.max(0, MIN_MS_BETWEEN_CALLS - elapsed);
+    if (waitMs > 0) {
+      setTimeout(() => {
+        lastCallTime = Date.now();
+        resolve();
+      }, waitMs);
+    } else {
+      lastCallTime = Date.now();
+      resolve();
+    }
+  });
+};
+
+// Daily rate limit (optional safety)
 let dailyApiCalls = 0;
 const MAX_DAILY_CALLS = 5000;
-const RATE_LIMIT_RESET_HOUR = 0; // Reset at midnight UTC
+const RATE_LIMIT_RESET_HOUR = 0;
 
-/**
- * Track API usage and check rate limits
- */
 const trackApiCall = (): boolean => {
   const now = new Date();
   const currentHour = now.getUTCHours();
-  
-  // Reset counter at midnight UTC
   if (currentHour === RATE_LIMIT_RESET_HOUR && dailyApiCalls > 0) {
     dailyApiCalls = 0;
-    console.log('🔄 Best Buy API rate limit counter reset');
   }
-  
   if (dailyApiCalls >= MAX_DAILY_CALLS) {
-    console.warn(`⚠️  Best Buy API rate limit reached: ${dailyApiCalls}/${MAX_DAILY_CALLS} calls today`);
+    console.warn(`[Best Buy] Daily rate limit reached: ${dailyApiCalls}/${MAX_DAILY_CALLS}`);
     return false;
   }
-  
   dailyApiCalls++;
-  console.log(`📊 Best Buy API calls today: ${dailyApiCalls}/${MAX_DAILY_CALLS}`);
   return true;
 };
 
@@ -49,7 +61,63 @@ export const getApiUsage = (): { calls: number; limit: number; remaining: number
 };
 
 /**
- * Search products on Best Buy API
+ * Test Best Buy API connectivity (for /api/health/bestbuy).
+ * Does one minimal request; does not count toward search throttling in a heavy way.
+ */
+export const checkBestBuyConnectivity = async (): Promise<{ ok: boolean; message?: string; error?: string }> => {
+  if (!BESTBUY_API_KEY) {
+    return { ok: false, message: 'BESTBUY_API_KEY is not configured', error: 'missing_key' };
+  }
+  try {
+    const url = `${BESTBUY_BASE_URL}/products(search=test)?apiKey=${BESTBUY_API_KEY}&format=json&pageSize=1`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      const text = await response.text();
+      return { ok: false, message: `API returned ${response.status}`, error: text.slice(0, 100) };
+    }
+    const data = (await response.json()) as BestBuyApiResponse & { error?: string };
+    if (data.error) {
+      return { ok: false, message: data.error, error: 'api_error' };
+    }
+    return { ok: true, message: 'Best Buy API reachable' };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, message: msg, error: 'network_or_error' };
+  }
+};
+
+/**
+ * Transform Best Buy product to API Product format in memory (no database write).
+ * Used by search only; read-only.
+ */
+function transformBestBuyToProductReadOnly(bbProduct: BestBuyProduct): Product {
+  const category = bbProduct.categoryPath && bbProduct.categoryPath.length > 0
+    ? bbProduct.categoryPath[bbProduct.categoryPath.length - 1].name
+    : 'Electronics';
+  const brand = bbProduct.brand || extractBrandFromName(bbProduct.name);
+  const price = bbProduct.salePrice ?? bbProduct.regularPrice ?? 0;
+  const now = new Date().toISOString();
+  return {
+    id: `bestbuy-${bbProduct.sku}`,
+    name: bbProduct.name,
+    description: bbProduct.longDescription || bbProduct.shortDescription || '',
+    category,
+    brand,
+    imageUrl: bbProduct.image || undefined,
+    prices: [{
+      store: 'Best Buy',
+      price,
+      currency: 'USD',
+      url: bbProduct.url,
+      inStock: bbProduct.onlineAvailability !== false,
+      lastUpdated: now
+    }]
+  };
+}
+
+/**
+ * Search products on Best Buy API (read-only, no database).
+ * Throttled to max 4 requests per second.
  */
 export const searchProducts = async (query: string, limit: number = 10): Promise<Product[]> => {
   if (!BESTBUY_API_KEY) {
@@ -60,31 +128,35 @@ export const searchProducts = async (query: string, limit: number = 10): Promise
     throw new Error('Best Buy API rate limit exceeded');
   }
 
+  await waitForThrottle();
+
   try {
     const searchQuery = encodeURIComponent(query);
     const url = `${BESTBUY_BASE_URL}/products(search=${searchQuery})?apiKey=${BESTBUY_API_KEY}&format=json&pageSize=${limit}`;
 
-    console.log(`🔍 Searching Best Buy API for: ${query}`);
+    console.log(`🔍 [Best Buy] Searching for: ${query}`);
 
     const response = await fetch(url);
-    
+
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Best Buy API error: ${response.status} - ${errorText}`);
+      console.warn(`[Best Buy] API error ${response.status}:`, errorText.slice(0, 200));
+      throw new Error(`Best Buy API error: ${response.status}`);
     }
 
-    const data = await response.json() as BestBuyApiResponse;
-    
-    console.log(`✅ Best Buy API returned ${data.products.length} products (total: ${data.total})`);
+    const data = (await response.json()) as BestBuyApiResponse & { error?: string };
 
-    // Transform Best Buy products to our format
-    const products = await Promise.all(
-      data.products.map(bbProduct => transformBestBuyToProduct(bbProduct))
-    );
+    if (data.error) {
+      console.warn('[Best Buy] API returned error:', data.error);
+      return [];
+    }
 
-    return products;
+    const rawProducts = Array.isArray(data.products) ? data.products : [];
+    console.log(`✅ [Best Buy] Returned ${rawProducts.length} products (total: ${(data as BestBuyApiResponse).total ?? '?'})`);
+
+    return rawProducts.map((bbProduct: BestBuyProduct) => transformBestBuyToProductReadOnly(bbProduct));
   } catch (error) {
-    console.error('Error searching Best Buy API:', error);
+    console.error('[Best Buy] Search failed:', error);
     throw error;
   }
 };

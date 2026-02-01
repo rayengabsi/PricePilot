@@ -9,13 +9,14 @@ import authRoutes from './authRoutes';
 import userRoutes from './userRoutes';
 import priceAlertRoutes from './priceAlertRoutes';
 import emailRoutes from './emailRoutes';
-import { healthCheck } from '../controllers/healthController';
+import { healthCheck, healthCheckBestBuy } from '../controllers/healthController';
 import { searchProducts, compareProducts, testBestBuySearch } from '../controllers/productController';
 
 const router = Router();
 
-// Health check endpoint
+// Health check endpoints
 router.get('/health', healthCheck);
+router.get('/health/bestbuy', healthCheckBestBuy);
 
 // Authentication routes
 router.use('/auth', authRoutes);
@@ -32,7 +33,7 @@ router.use('/alerts', priceAlertRoutes);
 // Email test & template preview
 router.use('/email', emailRoutes);
 
-// Search endpoint - GET /api/search?q=query
+// Search endpoint - PUBLIC (no auth), GET /api/search?q=query
 router.get('/search', searchProducts);
 
 // Compare endpoint - POST /api/compare
